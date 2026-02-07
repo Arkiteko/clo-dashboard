@@ -66,11 +66,11 @@ def render_alert_banner(alerts: List[Alert]) -> None:
     with st.expander(f"View All Alerts ({len(alerts)})"):
         for a in alerts:
             if a.severity == AlertSeverity.CRITICAL:
-                icon = ":red_circle:"
+                icon = "\U0001F534"
             elif a.severity == AlertSeverity.WARNING:
-                icon = ":large_orange_circle:"
+                icon = "\U0001F7E0"
             else:
-                icon = ":large_blue_circle:"
+                icon = "\U0001F535"
             st.markdown(f"{icon} **[{a.warehouse}]** {a.title} — {a.detail}")
 
 

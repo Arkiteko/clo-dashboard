@@ -132,13 +132,13 @@ with st.sidebar:
         n_info = sum(1 for a in all_alerts if a.severity == AlertSeverity.INFO)
 
         if n_critical > 0:
-            st.markdown(f":red_circle: **{n_critical} Critical**")
+            st.markdown(f"\U0001F534 **{n_critical} Critical**")
         if n_warning > 0:
-            st.markdown(f":large_orange_circle: **{n_warning} Warning**")
+            st.markdown(f"\U0001F7E0 **{n_warning} Warning**")
         if n_info > 0:
-            st.markdown(f":large_blue_circle: **{n_info} Info**")
+            st.markdown(f"\U0001F535 **{n_info} Info**")
         if n_critical == 0 and n_warning == 0 and n_info == 0:
-            st.markdown(":white_check_mark: **All Clear**")
+            st.markdown("\u2705 **All Clear**")
 
         st.divider()
         st.caption("Data Freshness")
@@ -148,11 +148,11 @@ with st.sidebar:
             latest_dt = wh_data["data_date"].max()
             days_old = (today_ts - latest_dt).days
             if days_old >= 14:
-                st.markdown(f":red_circle: **{wh_name}**: {days_old}d ago")
+                st.markdown(f"\U0001F534 **{wh_name}**: {days_old}d ago")
             elif days_old >= 7:
-                st.markdown(f":large_orange_circle: **{wh_name}**: {days_old}d ago")
+                st.markdown(f"\U0001F7E0 **{wh_name}**: {days_old}d ago")
             else:
-                st.markdown(f":white_check_mark: **{wh_name}**: {days_old}d ago")
+                st.markdown(f"\u2705 **{wh_name}**: {days_old}d ago")
     else:
         st.info("No data loaded.")
 
@@ -1075,14 +1075,14 @@ with tabs[4]:
                 if wh_alerts_list:
                     for a in wh_alerts_list:
                         if a.severity == AlertSeverity.CRITICAL:
-                            icon = ":red_circle:"
+                            icon = "\U0001F534"
                         elif a.severity == AlertSeverity.WARNING:
-                            icon = ":large_orange_circle:"
+                            icon = "\U0001F7E0"
                         else:
-                            icon = ":large_blue_circle:"
+                            icon = "\U0001F535"
                         st.markdown(f"{icon} **{a.title}** — {a.detail}")
                 else:
-                    st.markdown(":white_check_mark: All compliance checks passed.")
+                    st.markdown("\u2705 All compliance checks passed.")
 
 
 # ══════════════════════════════════════════════════════════════════════
