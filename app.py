@@ -3,7 +3,8 @@ import pandas as pd
 from pathlib import Path
 from src.etl import ETLPipeline
 from src.utils import ingest_file
-from src.config import get_warehouse_config, save_warehouse_config, WarehouseConfig
+from src.config import get_warehouse_config, save_warehouse_config, WarehouseConfig, StressConfig
+from src.stress import run_all_scenarios
 
 
 # Config
@@ -21,7 +22,7 @@ st.set_page_config(page_title="CLO Warehouse Platform", layout="wide")
 
 st.title("CLO Warehouse Platform")
 
-tabs = st.tabs(["Global Portfolio", "Warehouse Analytics", "Tape Ingestion", "Admin Settings"])
+tabs = st.tabs(["Global Portfolio", "Warehouse Analytics", "Stress Testing", "Tape Ingestion", "Admin Settings"])
 
 # Load all published data globally for use in tabs
 files = list(PUBLISHED_DIR.glob("*.parquet"))
@@ -494,8 +495,130 @@ with tabs[1]:
             st.dataframe(df_wh[["asset_id", "issuer_name", "par_amount", "market_price", "spread", "maturity_date", "rating_moodys"]], use_container_width=True)
 
 
-
 with tabs[2]:
+    st.header("Stress Testing / SVar")
+
+    if df_all.empty:
+        st.info("No data available. Please ingest tapes first.")
+    else:
+        wh_list_stress = sorted(df_all["warehouse_source"].unique())
+        selected_wh_stress = st.selectbox("Select Warehouse", wh_list_stress, key="wh_select_stress")
+
+        # Get latest snapshot for selected warehouse
+        df_wh_stress_all = df_all[df_all["warehouse_source"] == selected_wh_stress].copy()
+        latest_date_stress = df_wh_stress_all["data_date"].max()
+        df_wh_stress = df_wh_stress_all[df_wh_stress_all["data_date"] == latest_date_stress].copy()
+
+        config_stress = get_warehouse_config(selected_wh_stress)
+        s_cfg = config_stress.stress_config
+
+        # Optional debt override
+        wh_funded_stress = df_wh_stress["par_amount"].sum()
+        wh_price_stress = (df_wh_stress["par_amount"] * df_wh_stress["market_price"]).sum() / wh_funded_stress if wh_funded_stress > 0 else 100
+        implied_debt_stress = wh_funded_stress * (wh_price_stress / 100) * config_stress.advance_rate
+
+        col_debt, col_cash = st.columns(2)
+        debt_input = col_debt.number_input("Debt Outstanding", value=implied_debt_stress, key="stress_debt")
+        cash_input = col_cash.number_input("Cash Balance", value=0.0, key="stress_cash")
+
+        run_stress = st.button("Run Stress Analysis", type="primary")
+
+        if run_stress:
+            with st.spinner("Running stress scenarios..."):
+                results = run_all_scenarios(
+                    df_wh_stress, config_stress, s_cfg,
+                    debt_outstanding=debt_input, cash_balance=cash_input
+                )
+
+            # ── Row 1: Aggregate Summary ──
+            st.divider()
+            st.subheader("Aggregate Stress Summary")
+
+            a1, a2, a3, a4 = st.columns(4)
+            a1.metric(
+                "Total Stressed Loss",
+                f"${results.total_stressed_loss / 1e6:,.2f}M",
+                f"-{results.total_stressed_loss / results.total_par:.1%} of par" if results.total_par > 0 else ""
+            )
+            a2.metric(
+                "Stressed OC Ratio",
+                f"{results.stressed_oc:.2%}",
+                f"{results.stressed_oc - results.base_oc:.2%} vs base",
+                delta_color="inverse"
+            )
+            if results.oc_breach:
+                a3.metric("OC Breach", "YES", f"Trigger: {results.oc_trigger:.0%}", delta_color="inverse")
+            else:
+                a3.metric("OC Breach", "NO", f"Trigger: {results.oc_trigger:.0%}", delta_color="off")
+            a4.metric(
+                "Stressed CCC %",
+                f"{results.stressed_ccc_pct:.1%}",
+                "BREACH" if results.ccc_breach else "Within limit",
+                delta_color="inverse" if results.ccc_breach else "off"
+            )
+
+            # ── Row 2: Scenario Breakdown Table ──
+            st.divider()
+            st.subheader("Scenario Breakdown")
+
+            scenario_rows = []
+            for s in results.scenarios:
+                scenario_rows.append({
+                    "Scenario": s.name,
+                    "Loss ($M)": round(s.loss_dollars / 1e6, 2),
+                    "Loss (%)": f"{s.loss_pct:.2%}",
+                    "Key Detail": s.detail,
+                })
+            df_scenario = pd.DataFrame(scenario_rows)
+            st.dataframe(df_scenario, use_container_width=True, hide_index=True)
+
+            # ── Row 3: Charts + Comparison ──
+            st.divider()
+            col_chart, col_compare = st.columns(2)
+
+            with col_chart:
+                st.markdown("**Loss by Scenario**")
+                chart_data = pd.DataFrame({
+                    "Scenario": [s.name for s in results.scenarios],
+                    "Loss ($M)": [s.loss_dollars / 1e6 for s in results.scenarios]
+                }).set_index("Scenario")
+                st.bar_chart(chart_data)
+
+            with col_compare:
+                st.markdown("**Stressed vs Unstressed**")
+                c1, c2 = st.columns(2)
+                c1.metric("Base OC", f"{results.base_oc:.2%}")
+                c2.metric("Stressed OC", f"{results.stressed_oc:.2%}", f"{results.stressed_oc - results.base_oc:.2%}", delta_color="inverse")
+
+                # Base CCC
+                base_ccc_par = df_wh_stress[df_wh_stress["rating_moodys"].str.contains("Caa|C", na=False)]["par_amount"].sum()
+                base_ccc_pct = base_ccc_par / results.total_par if results.total_par > 0 else 0
+                c3, c4 = st.columns(2)
+                c3.metric("Base CCC %", f"{base_ccc_pct:.1%}")
+                c4.metric("Stressed CCC %", f"{results.stressed_ccc_pct:.1%}", f"{results.stressed_ccc_pct - base_ccc_pct:+.1%}", delta_color="inverse" if results.ccc_breach else "off")
+
+                # NAV
+                base_nav = (results.total_par + cash_input) - debt_input
+                stressed_nav = (results.total_par - results.total_stressed_loss + cash_input) - debt_input
+                c5, c6 = st.columns(2)
+                c5.metric("Base NAV", f"${base_nav / 1e6:,.2f}M")
+                c6.metric("Stressed NAV", f"${stressed_nav / 1e6:,.2f}M", f"${(stressed_nav - base_nav) / 1e6:,.2f}M", delta_color="inverse")
+
+            # ── Row 4: Asset-Level Detail ──
+            st.divider()
+            st.subheader("Asset-Level Stress Detail")
+
+            for s in results.scenarios:
+                if s.asset_level is not None and not s.asset_level.empty:
+                    with st.expander(f"{s.name} — Asset Detail"):
+                        display_df = s.asset_level.copy()
+                        # Format loss column
+                        if "loss" in display_df.columns:
+                            display_df = display_df.sort_values("loss", ascending=False)
+                        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+
+with tabs[3]:
     st.markdown("### Data Tape Ingestion & Validation")
 
     uploaded_file = st.file_uploader("Drop Standard Template (Excel)", type=["xlsx"])
@@ -565,7 +688,7 @@ with tabs[2]:
         st.dataframe(hist_df, use_container_width=True)
 
 
-with tabs[3]:
+with tabs[4]:
     st.header("Admin Settings")
     st.info("Configure Limits and Triggers for each warehouse here.")
     
@@ -579,29 +702,76 @@ with tabs[3]:
         
         with st.form("admin_config_form"):
             st.subheader(f"Configuration for: {selected_wh_admin}")
-            
+
             # Type Selector
             new_type = st.selectbox("Warehouse Type", ["BSL", "Middle Market"], index=0 if config.warehouse_type=="BSL" else 1)
-            
+
             c_adm1, c_adm2 = st.columns(2)
-            
+
             with c_adm1:
                 st.markdown("#### Facility Limits")
                 new_max = st.number_input("Max Facility Size ($)", value=float(config.max_facility_amount))
                 new_adv = st.slider("Advance Rate", 0.0, 1.0, value=float(config.advance_rate))
-            
+
             with c_adm2:
                 st.markdown("#### Compliance Triggers")
                 new_oc = st.number_input("Min OC Ratio Trigger (decimal)", value=float(config.oc_trigger_pct), step=0.01, help="e.g. 1.25 for 125%")
                 new_conc = st.slider("Max Industry Concentration", 0.0, 1.0, value=float(config.concentration_limit_industry))
-            
+
+            # ── Stress Parameters ──
+            st.divider()
+            st.subheader("Stress Test Parameters")
+            sc = config.stress_config
+
+            st_col1, st_col2, st_col3 = st.columns(3)
+
+            with st_col1:
+                st.markdown("**Price Shock Haircuts (pts)**")
+                sp_ig = st.number_input("IG", value=float(sc.price_shock_ig), step=0.5, key="sp_ig")
+                sp_bb = st.number_input("BB", value=float(sc.price_shock_bb), step=0.5, key="sp_bb")
+                sp_b = st.number_input("B", value=float(sc.price_shock_b), step=0.5, key="sp_b")
+                sp_ccc = st.number_input("CCC", value=float(sc.price_shock_ccc), step=1.0, key="sp_ccc")
+
+            with st_col2:
+                st.markdown("**Default Rates (CDR)**")
+                cdr_ig = st.number_input("IG CDR", value=float(sc.cdr_ig), step=0.005, format="%.3f", key="cdr_ig")
+                cdr_bb = st.number_input("BB CDR", value=float(sc.cdr_bb), step=0.01, format="%.3f", key="cdr_bb")
+                cdr_b = st.number_input("B CDR", value=float(sc.cdr_b), step=0.01, format="%.3f", key="cdr_b")
+                cdr_ccc = st.number_input("CCC CDR", value=float(sc.cdr_ccc), step=0.01, format="%.3f", key="cdr_ccc")
+
+                st.markdown("**Recovery Rates**")
+                rec_1l = st.number_input("1L Recovery", value=float(sc.recovery_1l), step=0.05, format="%.2f", key="rec_1l")
+                rec_2l = st.number_input("2L Recovery", value=float(sc.recovery_2l), step=0.05, format="%.2f", key="rec_2l")
+                rec_un = st.number_input("Unsecured Recovery", value=float(sc.recovery_unsecured), step=0.05, format="%.2f", key="rec_un")
+
+            with st_col3:
+                st.markdown("**Spread Shocks (bps)**")
+                ss_ig = st.number_input("IG Spread", value=float(sc.spread_shock_ig), step=10.0, key="ss_ig")
+                ss_bb = st.number_input("BB Spread", value=float(sc.spread_shock_bb), step=25.0, key="ss_bb")
+                ss_b = st.number_input("B Spread", value=float(sc.spread_shock_b), step=25.0, key="ss_b")
+                ss_ccc = st.number_input("CCC Spread", value=float(sc.spread_shock_ccc), step=50.0, key="ss_ccc")
+
+                st.markdown("**Migration & Concentration**")
+                mig_rate = st.number_input("Migration Rate", value=float(sc.migration_rate), step=0.05, format="%.2f", key="mig_rate")
+                conc_n = st.number_input("Top N Obligors", value=int(sc.concentration_top_n), step=1, key="conc_n")
+
             if st.form_submit_button("Save Configuration"):
+                new_stress = StressConfig(
+                    price_shock_ig=sp_ig, price_shock_bb=sp_bb,
+                    price_shock_b=sp_b, price_shock_ccc=sp_ccc,
+                    cdr_ig=cdr_ig, cdr_bb=cdr_bb, cdr_b=cdr_b, cdr_ccc=cdr_ccc,
+                    recovery_1l=rec_1l, recovery_2l=rec_2l, recovery_unsecured=rec_un,
+                    spread_shock_ig=ss_ig, spread_shock_bb=ss_bb,
+                    spread_shock_b=ss_b, spread_shock_ccc=ss_ccc,
+                    migration_rate=mig_rate, concentration_top_n=int(conc_n),
+                )
                 new_cfg = WarehouseConfig(
                     max_facility_amount=new_max,
                     advance_rate=new_adv,
                     oc_trigger_pct=new_oc,
                     concentration_limit_industry=new_conc,
-                    warehouse_type=new_type
+                    warehouse_type=new_type,
+                    stress_config=new_stress,
                 )
                 save_warehouse_config(selected_wh_admin, new_cfg)
                 st.success(f"Settings saved for {selected_wh_admin}")

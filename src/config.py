@@ -5,6 +5,39 @@ from pydantic import BaseModel
 
 CONFIG_PATH = Path("data/warehouse_config.json")
 
+
+class StressConfig(BaseModel):
+    """Configurable stress parameters per warehouse."""
+    # Price shock haircuts (points off market_price) by rating tier
+    price_shock_ig: float = 1.0
+    price_shock_bb: float = 3.0
+    price_shock_b: float = 5.0
+    price_shock_ccc: float = 15.0
+
+    # Conditional default rates by rating tier
+    cdr_ig: float = 0.005
+    cdr_bb: float = 0.02
+    cdr_b: float = 0.05
+    cdr_ccc: float = 0.15
+
+    # Recovery rates by lien type
+    recovery_1l: float = 0.65
+    recovery_2l: float = 0.35
+    recovery_unsecured: float = 0.15
+
+    # Spread shocks (bps) by rating tier
+    spread_shock_ig: float = 50.0
+    spread_shock_bb: float = 100.0
+    spread_shock_b: float = 200.0
+    spread_shock_ccc: float = 500.0
+
+    # Downgrade migration rate (fraction of assets migrated one notch)
+    migration_rate: float = 0.10
+
+    # Concentration: number of top obligors to stress-default
+    concentration_top_n: int = 3
+
+
 class WarehouseConfig(BaseModel):
     max_facility_amount: float = 100_000_000.0
     advance_rate: float = 0.80
@@ -12,6 +45,7 @@ class WarehouseConfig(BaseModel):
     min_spread: float = 2.50
     concentration_limit_industry: float = 0.15 # 15%
     warehouse_type: str = "BSL" # "BSL" or "Middle Market"
+    stress_config: StressConfig = StressConfig()
 
     def to_dict(self):
         return self.model_dump()
