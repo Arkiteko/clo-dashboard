@@ -13,6 +13,7 @@ import numpy as np
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+from src.config import StressConfig
 
 
 # ── Moody's Rating Hierarchy ──────────────────────────────────────────
@@ -391,5 +392,60 @@ def run_all_scenarios(
         oc_trigger=warehouse_config.oc_trigger_pct,
         oc_breach=stressed_oc < warehouse_config.oc_trigger_pct,
         stressed_ccc_pct=stressed_ccc_pct,
-        ccc_breach=stressed_ccc_pct > 0.075,
+        ccc_breach=stressed_ccc_pct > getattr(warehouse_config, 'max_ccc_pct', 0.075),
     )
+
+
+# ── Preset Scenario Definitions ───────────────────────────────────────
+
+PRESET_SCENARIOS = {
+    "Base": StressConfig(),
+    "Moderate": StressConfig(
+        price_shock_ig=2.0, price_shock_bb=5.0, price_shock_b=8.0, price_shock_ccc=20.0,
+        cdr_ig=0.01, cdr_bb=0.04, cdr_b=0.08, cdr_ccc=0.25,
+        spread_shock_ig=75, spread_shock_bb=150, spread_shock_b=300, spread_shock_ccc=700,
+        migration_rate=0.15,
+    ),
+    "Severe": StressConfig(
+        price_shock_ig=4.0, price_shock_bb=10.0, price_shock_b=15.0, price_shock_ccc=30.0,
+        cdr_ig=0.02, cdr_bb=0.08, cdr_b=0.15, cdr_ccc=0.40,
+        spread_shock_ig=150, spread_shock_bb=300, spread_shock_b=500, spread_shock_ccc=1000,
+        migration_rate=0.25, concentration_top_n=5,
+    ),
+    "COVID-2020": StressConfig(
+        price_shock_ig=3.0, price_shock_bb=8.0, price_shock_b=12.0, price_shock_ccc=25.0,
+        cdr_ig=0.015, cdr_bb=0.06, cdr_b=0.12, cdr_ccc=0.35,
+        spread_shock_ig=100, spread_shock_bb=250, spread_shock_b=400, spread_shock_ccc=800,
+        migration_rate=0.20, concentration_top_n=4,
+    ),
+}
+
+
+# ── Historical Stress ─────────────────────────────────────────────────
+
+def run_historical_stress(
+    df_all_wh: pd.DataFrame,
+    warehouse_config,
+    stress_cfg,
+) -> pd.DataFrame:
+    """
+    Run stress scenarios on each historical snapshot and return a trend DataFrame.
+    """
+    results_rows = []
+    for d, g in df_all_wh.groupby("data_date"):
+        if g.empty:
+            continue
+        try:
+            res = run_all_scenarios(g, warehouse_config, stress_cfg)
+            results_rows.append({
+                "Date": d,
+                "Base OC": res.base_oc,
+                "Stressed OC": res.stressed_oc,
+                "Total Loss ($M)": res.total_stressed_loss / 1e6,
+                "Loss %": res.total_stressed_loss / res.total_par if res.total_par > 0 else 0,
+                "Stressed CCC %": res.stressed_ccc_pct,
+                "OC Breach": res.oc_breach,
+            })
+        except Exception:
+            continue
+    return pd.DataFrame(results_rows).sort_values("Date") if results_rows else pd.DataFrame()

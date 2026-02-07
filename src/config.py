@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
-from pydantic import BaseModel
+from typing import Dict, Any, Optional, List
+from pydantic import BaseModel, Field
+from src.models import AlertConfig
 
 CONFIG_PATH = Path("data/warehouse_config.json")
 
@@ -46,6 +47,16 @@ class WarehouseConfig(BaseModel):
     concentration_limit_industry: float = 0.15 # 15%
     warehouse_type: str = "BSL" # "BSL" or "Middle Market"
     stress_config: StressConfig = StressConfig()
+    # Compliance sublimits
+    max_single_name_pct: float = 0.02       # 2% max single issuer
+    max_second_lien_pct: float = 0.10       # 10% max second lien
+    max_unsecured_pct: float = 0.05         # 5% max unsecured
+    max_ccc_pct: float = 0.075              # 7.5% max CCC bucket
+    # Ramp tracker
+    target_ramp_amount: Optional[float] = None  # Target total par at close
+    target_close_date: Optional[str] = None     # ISO format YYYY-MM-DD
+    # Alert configuration
+    alert_config: AlertConfig = AlertConfig()
 
     def to_dict(self):
         return self.model_dump()

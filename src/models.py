@@ -114,3 +114,46 @@ class ValidationIssue(BaseModel):
     row_id: Optional[str] = None
     column: Optional[str] = None
     value: Any = None
+
+
+# ── Alert System Models ───────────────────────────────────────────────
+
+class AlertSeverity(str, Enum):
+    CRITICAL = "CRITICAL"
+    WARNING = "WARNING"
+    INFO = "INFO"
+
+
+class AlertConfig(BaseModel):
+    """Configurable alert thresholds per warehouse."""
+    # Proximity warning margin (fraction of limit value)
+    proximity_margin: float = 0.10  # 10%
+
+    # Data staleness thresholds (days)
+    stale_warning_days: int = 7
+    stale_critical_days: int = 14
+
+    # Risk metric thresholds
+    warf_warning: float = 3000.0
+    warf_critical: float = 3500.0
+    diversity_warning: float = 40.0
+
+    # Utilization
+    utilization_warning: float = 0.90
+
+    # Disabled rules (list of rule_id strings)
+    disabled_rules: List[str] = Field(default_factory=list)
+
+
+class Alert(BaseModel):
+    """A single alert instance."""
+    alert_id: str
+    warehouse: str
+    severity: AlertSeverity
+    category: str  # "Compliance", "Concentration", "Data Quality", "Threshold Proximity", "Risk"
+    title: str
+    detail: str
+    metric_name: str
+    current_value: float
+    threshold_value: float
+    timestamp: datetime = Field(default_factory=datetime.now)

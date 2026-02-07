@@ -28,18 +28,27 @@ class ETLPipeline:
         canonical_map = {
             "Asset ID": "asset_id",
             "Issuer": "issuer_name",
+            "Borrower": "borrower_name",
             "Par": "par_amount",
+            "Currency": "currency",
             "Market Price": "market_price",
+            "Market Value": "market_value",
             "Industry": "industry_gics",
             "Spread": "spread",
             "Coupon": "coupon",
+            "Floor": "floor",
             "Maturity Date": "maturity_date",
             "Origination Date": "origination_date",
             "Payment Freq": "payment_frequency",
             "Rating Moodys": "rating_moodys",
+            "Rating SP": "rating_sp",
             "Original Rating": "original_rating_moodys",
             "Lien": "lien_type",
-            "Facility Type": "facility_type"
+            "Facility Type": "facility_type",
+            "Country": "country",
+            "Cov Lite": "is_cov_lite",
+            "PIK": "is_pik",
+            "Defaulted": "is_defaulted",
         }
         
         df_std = df_staging.rename(columns=canonical_map)
