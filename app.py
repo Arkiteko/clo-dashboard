@@ -103,9 +103,9 @@ with tabs[0]:
     if df_all.empty:
         st.info("No published data found. Please ingest some tapes.")
     else:
-        # Filter for LATEST snapshot per warehouse for the Overview Cards
-        latest_indices = df_all.groupby("warehouse_source")["data_date"].idxmax()
-        df_latest = df_all.loc[latest_indices].copy()
+        # Filter for LATEST snapshot per warehouse (all assets from latest date)
+        latest_dates = df_all.groupby("warehouse_source")["data_date"].transform("max")
+        df_latest = df_all[df_all["data_date"] == latest_dates].copy()
         
         # Enrich with Strategy Type from Config
         # We need to look up config for each filtered row
@@ -150,7 +150,7 @@ with tabs[0]:
         
         c5, c6, c7, c8 = st.columns(4)
         c5.metric("Total Assets", total_assets)
-        c6.metric("Active Warehouses", len(df_latest))
+        c6.metric("Active Warehouses", df_latest["warehouse_source"].nunique())
         c7.metric("Global CCC %", f"{ccc_pct:.2%}")
         
         st.divider()
@@ -204,6 +204,151 @@ with tabs[0]:
         if "issuer_name" in df_latest.columns:
             iss_exp = df_latest.groupby("issuer_name")["par_amount"].sum().sort_values(ascending=False).head(20)
             st.dataframe(iss_exp.reset_index().rename(columns={"par_amount": "Total Exposure"}), use_container_width=True)
+
+        # ────────────────────────────────────────────────────────────
+        # WAREHOUSE SUMMARY TABLE
+        # ────────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("Warehouse Comparison")
+
+        wh_summary_rows = []
+        today_dt = pd.to_datetime(datetime.now())
+        for wh_name, g in df_latest.groupby("warehouse_source"):
+            cfg = get_warehouse_config(wh_name)
+            funded = g["par_amount"].sum()
+            w_price = (g["par_amount"] * g["market_price"]).sum() / funded if funded > 0 else 0
+            w_was = (g["par_amount"] * g["spread"]).sum() / funded if funded > 0 else 0 if "spread" in g.columns else 0
+
+            if "maturity_date" in g.columns:
+                g_wal = (g["par_amount"] * ((pd.to_datetime(g["maturity_date"]) - today_dt).dt.days / 365.0)).sum() / funded if funded > 0 else 0
+            else:
+                g_wal = 0
+
+            # Estimated OC & utilization
+            est_debt = funded * (w_price / 100) * cfg.advance_rate
+            est_oc = funded / est_debt if est_debt > 0 else 0
+            util = est_debt / cfg.max_facility_amount if cfg.max_facility_amount > 0 else 0
+
+            # CCC
+            if "rating_moodys" in g.columns:
+                ccc_par = g[g["rating_moodys"].str.contains("Caa|C", na=False)]["par_amount"].sum()
+            else:
+                ccc_par = 0
+            ccc = ccc_par / funded if funded > 0 else 0
+
+            wh_summary_rows.append({
+                "Warehouse": wh_name,
+                "Type": cfg.warehouse_type,
+                "Funded ($M)": round(funded / 1e6, 2),
+                "W.Avg Price": round(w_price, 2),
+                "WAS (bps)": round(w_was, 0),
+                "WAL (yrs)": round(g_wal, 2),
+                "Est. OC Ratio": f"{est_oc:.2%}",
+                "Utilization": f"{util:.1%}",
+                "CCC %": f"{ccc:.1%}",
+                "Assets": len(g),
+            })
+
+        if wh_summary_rows:
+            df_wh_summary = pd.DataFrame(wh_summary_rows)
+            st.dataframe(df_wh_summary, use_container_width=True, hide_index=True)
+
+        # ────────────────────────────────────────────────────────────
+        # COMPLIANCE HEATMAP
+        # ────────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("Compliance Status")
+
+        compliance_rows = []
+        for wh_name, g in df_latest.groupby("warehouse_source"):
+            cfg = get_warehouse_config(wh_name)
+            funded = g["par_amount"].sum()
+            w_price = (g["par_amount"] * g["market_price"]).sum() / funded if funded > 0 else 0
+
+            # OC
+            est_debt = funded * (w_price / 100) * cfg.advance_rate
+            est_oc = funded / est_debt if est_debt > 0 else 0
+            oc_status = "✅" if est_oc >= cfg.oc_trigger_pct else "🔴"
+
+            # CCC
+            if "rating_moodys" in g.columns:
+                ccc_par = g[g["rating_moodys"].str.contains("Caa|C", na=False)]["par_amount"].sum()
+            else:
+                ccc_par = 0
+            ccc_pct = ccc_par / funded if funded > 0 else 0
+            ccc_status = "✅" if ccc_pct <= 0.075 else "🔴"
+
+            # Industry concentration
+            if "industry_gics" in g.columns:
+                max_ind_pct = g.groupby("industry_gics")["par_amount"].sum().max() / funded if funded > 0 else 0
+            else:
+                max_ind_pct = 0
+            ind_status = "✅" if max_ind_pct <= cfg.concentration_limit_industry else "⚠️"
+
+            compliance_rows.append({
+                "Warehouse": wh_name,
+                "OC Ratio": f"{est_oc:.2%}",
+                "OC Trigger": f"{cfg.oc_trigger_pct:.0%}",
+                "OC Status": oc_status,
+                "CCC %": f"{ccc_pct:.1%}",
+                "CCC Limit": "7.5%",
+                "CCC Status": ccc_status,
+                "Max Industry": f"{max_ind_pct:.1%}",
+                "Ind. Limit": f"{cfg.concentration_limit_industry:.0%}",
+                "Ind. Status": ind_status,
+            })
+
+        if compliance_rows:
+            df_compliance = pd.DataFrame(compliance_rows)
+            st.dataframe(df_compliance, use_container_width=True, hide_index=True)
+
+        # ────────────────────────────────────────────────────────────
+        # LIEN TYPE & FACILITY MIX
+        # ────────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("Portfolio Composition")
+
+        col_lien, col_flags = st.columns(2)
+
+        with col_lien:
+            st.markdown("**Lien Type Breakdown**")
+            if "lien_type" in df_latest.columns:
+                lien_by_wh = df_latest.groupby(["warehouse_source", "lien_type"])["par_amount"].sum().unstack(fill_value=0)
+                st.bar_chart(lien_by_wh)
+            else:
+                st.info("Lien type data not available.")
+
+        with col_flags:
+            st.markdown("**Portfolio Flags**")
+            total_par = df_latest["par_amount"].sum()
+            if total_par > 0:
+                cov_lite_pct = df_latest[df_latest["is_cov_lite"] == True]["par_amount"].sum() / total_par if "is_cov_lite" in df_latest.columns else 0
+                pik_pct = df_latest[df_latest["is_pik"] == True]["par_amount"].sum() / total_par if "is_pik" in df_latest.columns else 0
+                default_pct = df_latest[df_latest["is_defaulted"] == True]["par_amount"].sum() / total_par if "is_defaulted" in df_latest.columns else 0
+
+                f1, f2, f3 = st.columns(3)
+                f1.metric("Cov-Lite %", f"{cov_lite_pct:.1%}")
+                f2.metric("PIK %", f"{pik_pct:.1%}")
+                f3.metric("Defaulted %", f"{default_pct:.1%}", delta_color="inverse" if default_pct > 0 else "off")
+
+        # ────────────────────────────────────────────────────────────
+        # MATURITY PROFILE
+        # ────────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("Maturity Profile")
+
+        if "maturity_date" in df_latest.columns:
+            df_mat = df_latest.copy()
+            df_mat["maturity_year"] = pd.to_datetime(df_mat["maturity_date"]).dt.year
+            current_year = datetime.now().year
+            # Bucket anything beyond current_year + 5 as "Later"
+            df_mat["maturity_bucket"] = df_mat["maturity_year"].apply(
+                lambda y: str(y) if y <= current_year + 5 else f"{current_year + 6}+"
+            )
+            mat_exp = df_mat.groupby("maturity_bucket")["par_amount"].sum().sort_index()
+            st.bar_chart(mat_exp)
+        else:
+            st.info("Maturity date data not available.")
 
 
 with tabs[1]:
