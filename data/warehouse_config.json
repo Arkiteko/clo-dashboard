@@ -1,0 +1,26 @@
+{
+  "Warehouse_Gamma": {
+    "max_facility_amount": 50000000.0,
+    "advance_rate": 0.8,
+    "oc_trigger_pct": 1.25,
+    "min_spread": 2.5,
+    "concentration_limit_industry": 0.15,
+    "warehouse_type": "BSL"
+  },
+  "Warehouse_Alpha": {
+    "max_facility_amount": 150000000.0,
+    "advance_rate": 0.85,
+    "oc_trigger_pct": 1.25,
+    "min_spread": 2.5,
+    "concentration_limit_industry": 0.15,
+    "warehouse_type": "BSL"
+  },
+  "Warehouse_Beta": {
+    "max_facility_amount": 75000000.0,
+    "advance_rate": 0.75,
+    "oc_trigger_pct": 1.35,
+    "min_spread": 4.5,
+    "concentration_limit_industry": 0.15,
+    "warehouse_type": "Middle Market"
+  }
+}
