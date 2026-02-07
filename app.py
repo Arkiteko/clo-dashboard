@@ -362,7 +362,7 @@ with tabs[2]:
     if uploaded_file and process_btn:
         with st.spinner("Ingesting and Validating..."):
             # 1. Ingest
-            raw_path = ingest_file(uploaded_file, RAW_DIR, warehouse_name, as_of_date)
+            raw_path = ingest_file(uploaded_file, RAW_DIR, warehouse_name)
             st.success(f"File saved: {raw_path.name}")
             
             # 2. Run ETL
