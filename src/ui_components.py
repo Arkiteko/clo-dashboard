@@ -149,16 +149,16 @@ def render_compliance_table(
         def status_icon(val, limit, higher_is_worse=True):
             if higher_is_worse:
                 if val > limit:
-                    return ":red_circle:"
+                    return "\U0001F534"  # Red circle
                 elif val > limit * 0.85:
-                    return ":large_orange_circle:"
-                return ":white_check_mark:"
+                    return "\U0001F7E0"  # Orange circle
+                return "\u2705"  # Green check
             else:
                 if val < limit:
-                    return ":red_circle:"
+                    return "\U0001F534"  # Red circle
                 elif val < limit * 1.10:
-                    return ":large_orange_circle:"
-                return ":white_check_mark:"
+                    return "\U0001F7E0"  # Orange circle
+                return "\u2705"  # Green check
 
         rows.append({
             "Warehouse": wh,
