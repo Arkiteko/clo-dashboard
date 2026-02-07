@@ -15,6 +15,7 @@ from src.risk_analytics import (
 )
 from src.alerts import evaluate_all_alerts, evaluate_global_alerts, build_watchlist
 from src.models import AlertSeverity, AlertConfig
+from src.guidance import render_guidance_tab
 from src.ui_components import (
     render_alert_banner, section_header, render_compliance_table,
     render_watchlist_table, render_alert_detail_table,
@@ -163,7 +164,7 @@ st.title("CLO Warehouse Platform")
 
 tabs = st.tabs([
     "Global Portfolio", "Warehouse Analytics", "Stress Testing",
-    "Tape Ingestion", "Watchlist & Alerts", "Admin Settings",
+    "Tape Ingestion", "Watchlist & Alerts", "Admin Settings", "Guidance",
 ])
 
 
@@ -1233,3 +1234,10 @@ with tabs[5]:
                 save_warehouse_config(selected_wh_admin, new_cfg)
                 st.success(f"Settings saved for {selected_wh_admin}")
                 st.rerun()
+
+
+# ══════════════════════════════════════════════════════════════════════
+# TAB 6: GUIDANCE
+# ══════════════════════════════════════════════════════════════════════
+with tabs[6]:
+    render_guidance_tab()
