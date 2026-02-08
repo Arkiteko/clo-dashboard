@@ -7,7 +7,11 @@ from src.utils import ingest_file
 from src.config import get_warehouse_config, save_warehouse_config, WarehouseConfig, StressConfig
 from src.stress import run_all_scenarios, run_historical_stress, PRESET_SCENARIOS, RATING_ORDER
 from src.reports import generate_global_report, generate_warehouse_report, generate_stress_report
-from src.style import inject_custom_css, TIER_COLORS
+from src.style import inject_custom_css, TIER_COLORS, COLORS
+from src.charts import (
+    trend_chart, line_chart, bar_chart, grouped_bar_chart,
+    donut_chart, ramp_chart, BRAND, SERIES_COLORS, RATING_COLORS,
+)
 from src.risk_analytics import (
     compute_warf, compute_diversity_score, compute_portfolio_duration,
     compute_single_name_concentration, compute_lien_breakdown, compute_hhi,
@@ -122,7 +126,6 @@ if not df_all.empty:
 
 with st.sidebar:
     st.markdown("### CLO Warehouse Platform")
-    st.caption("Portfolio Snapshot")
 
     if not df_latest.empty:
         global_par = df_latest["par_amount"].sum()
@@ -135,36 +138,49 @@ with st.sidebar:
         st.metric("Active Warehouses", n_warehouses)
         st.metric("WARF", f"{global_warf:,.0f}")
         st.metric("Diversity Score", f"{global_diversity:.1f}")
-        st.metric("Portfolio Duration", f"{global_duration['weighted_avg_duration']:.2f} yrs")
 
         st.divider()
-        st.caption("Alert Summary")
+
+        # Alert summary with badges
         n_critical = sum(1 for a in all_alerts if a.severity == AlertSeverity.CRITICAL)
         n_warning = sum(1 for a in all_alerts if a.severity == AlertSeverity.WARNING)
         n_info = sum(1 for a in all_alerts if a.severity == AlertSeverity.INFO)
 
+        st.caption("ALERTS")
+        badge_html = ""
         if n_critical > 0:
-            st.markdown(f"\U0001F534 **{n_critical} Critical**")
+            badge_html += f'<span class="alert-badge badge-critical">{n_critical} Critical</span> '
         if n_warning > 0:
-            st.markdown(f"\U0001F7E0 **{n_warning} Warning**")
+            badge_html += f'<span class="alert-badge badge-warning">{n_warning} Warning</span> '
         if n_info > 0:
-            st.markdown(f"\U0001F535 **{n_info} Info**")
-        if n_critical == 0 and n_warning == 0 and n_info == 0:
-            st.markdown("\u2705 **All Clear**")
+            badge_html += f'<span class="alert-badge badge-info">{n_info} Info</span> '
+        if not badge_html:
+            badge_html = '<span class="alert-badge badge-clear">All Clear</span>'
+        st.markdown(badge_html, unsafe_allow_html=True)
 
         st.divider()
-        st.caption("Data Freshness")
+
+        # Data freshness — compact rows
+        st.caption("DATA FRESHNESS")
         today_ts = pd.to_datetime(datetime.now())
         for wh_name in sorted(df_latest["warehouse_source"].unique()):
             wh_data = df_latest[df_latest["warehouse_source"] == wh_name]
             latest_dt = wh_data["data_date"].max()
             days_old = (today_ts - latest_dt).days
+            display_name = wh_name.replace("Warehouse_", "")
             if days_old >= 14:
-                st.markdown(f"\U0001F534 **{wh_name}**: {days_old}d ago")
+                age_class = "age-old"
             elif days_old >= 7:
-                st.markdown(f"\U0001F7E0 **{wh_name}**: {days_old}d ago")
+                age_class = "age-stale"
             else:
-                st.markdown(f"\u2705 **{wh_name}**: {days_old}d ago")
+                age_class = "age-fresh"
+            st.markdown(
+                f'<div class="sidebar-status-row">'
+                f'<span class="wh-name">{display_name}</span>'
+                f'<span class="wh-age {age_class}">{days_old}d</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
     else:
         st.info("No data loaded.")
 
@@ -276,17 +292,17 @@ with tabs[0]:
         col_charts1, col_charts2 = st.columns(2)
 
         with col_charts1:
-            st.subheader("Global Industry Concentration")
             if "industry_gics" in df_latest.columns:
-                ind_exp = df_latest.groupby("industry_gics")["par_amount"].sum().sort_values(ascending=False).head(10)
-                st.bar_chart(ind_exp)
+                ind_exp = df_latest.groupby("industry_gics")["par_amount"].sum().sort_values(ascending=True).tail(10)
+                fig = bar_chart(ind_exp, title="Top 10 Industries", horizontal=True, height=360, color=BRAND["primary"])
+                st.plotly_chart(fig, use_container_width=True)
 
         with col_charts2:
-            st.subheader("Global Rating Distribution")
             if "rating_moodys" in df_latest.columns:
                 rtg_exp = df_latest.groupby("rating_moodys")["par_amount"].sum()
                 rtg_exp = rtg_exp.reindex(sorted(rtg_exp.index, key=lambda r: RATING_ORDER.get(r, 99)))
-                st.bar_chart(rtg_exp)
+                fig = bar_chart(rtg_exp, title="Rating Distribution", height=360, color_map=RATING_COLORS)
+                st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Top 20 Issuers (Global)")
         if "issuer_name" in df_latest.columns:
@@ -405,10 +421,14 @@ with tabs[0]:
             st.markdown("**Lien Type Breakdown**")
             global_lien = compute_lien_breakdown(df_latest)
             if not global_lien["breakdown_table"].empty:
-                st.dataframe(global_lien["breakdown_table"], use_container_width=True, hide_index=True)
                 if "lien_type" in df_latest.columns:
+                    lien_totals = df_latest.groupby("lien_type")["par_amount"].sum()
+                    fig = donut_chart(lien_totals, title="By Lien Type", height=280)
+                    st.plotly_chart(fig, use_container_width=True)
+
                     lien_by_wh = df_latest.groupby(["warehouse_source", "lien_type"])["par_amount"].sum().unstack(fill_value=0)
-                    st.bar_chart(lien_by_wh)
+                    fig2 = grouped_bar_chart(lien_by_wh, title="Lien Type by Warehouse", height=300)
+                    st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("Lien type data not available.")
 
@@ -448,7 +468,8 @@ with tabs[0]:
                 lambda y: str(y) if y <= current_year + 5 else f"{current_year + 6}+"
             )
             mat_exp = df_mat.groupby("maturity_bucket")["par_amount"].sum().sort_index()
-            st.bar_chart(mat_exp)
+            fig = bar_chart(mat_exp, title="Maturity Profile", height=320, color=BRAND["secondary"])
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Maturity date data not available.")
 
@@ -550,11 +571,11 @@ with tabs[1]:
             c_qual1, c_qual2 = st.columns(2)
 
             with c_qual1:
-                st.markdown("**Rating Distribution**")
                 if "rating_moodys" in df_wh.columns:
                     rtg_exp = df_wh.groupby("rating_moodys")["par_amount"].sum()
                     rtg_exp = rtg_exp.reindex(sorted(rtg_exp.index, key=lambda r: RATING_ORDER.get(r, 99)))
-                    st.bar_chart(rtg_exp)
+                    fig = bar_chart(rtg_exp, title="Rating Distribution", height=340, color_map=RATING_COLORS)
+                    st.plotly_chart(fig, use_container_width=True)
 
             with c_qual2:
                 st.markdown("**Rating Migration (vs Original)**")
@@ -590,24 +611,23 @@ with tabs[1]:
 
             t1, t2 = st.columns(2)
             with t1:
-                st.markdown("**Funded Exposure**")
-                st.line_chart(df_trend["Funded Exposure"])
+                fig = trend_chart(df_trend, "Funded Exposure", title="Funded Exposure", y_format="$,.0f", color=BRAND["primary"])
+                st.plotly_chart(fig, use_container_width=True)
             with t2:
-                st.markdown("**W.Avg Price**")
-                st.line_chart(df_trend["W.Avg Price"])
+                fig = trend_chart(df_trend, "W.Avg Price", title="W.Avg Price", y_format=".2f", color=BRAND["accent"])
+                st.plotly_chart(fig, use_container_width=True)
 
             t3, t4 = st.columns(2)
             with t3:
-                st.markdown("**Est. OC Ratio**")
-                st.line_chart(df_trend["Est. OC%"])
+                fig = trend_chart(df_trend, "Est. OC%", title="Est. OC Ratio", y_format=".2%", color=BRAND["positive"])
+                st.plotly_chart(fig, use_container_width=True)
             with t4:
-                st.markdown("**WARF Trend**")
-                st.line_chart(df_trend["WARF"])
+                fig = trend_chart(df_trend, "WARF", title="WARF Trend", y_format=",.0f", color=BRAND["warning"])
+                st.plotly_chart(fig, use_container_width=True)
 
             # ── Ramp Tracker ──
             if config.target_ramp_amount and config.target_close_date:
                 st.divider()
-                st.markdown("**Ramp Tracker: Actual vs Target**")
                 try:
                     target_date = pd.to_datetime(config.target_close_date)
                     target_amount = config.target_ramp_amount
@@ -626,7 +646,8 @@ with tabs[1]:
                         df_actual = df_trend[["Funded Exposure"]].copy()
                         df_combined = df_ramp.join(df_actual, how="outer").sort_index()
                         df_combined["Funded Exposure"] = df_combined["Funded Exposure"].ffill()
-                        st.line_chart(df_combined)
+                        fig = ramp_chart(df_combined)
+                        st.plotly_chart(fig, use_container_width=True)
                 except Exception:
                     st.info("Could not generate ramp chart. Check target dates in Admin Settings.")
 
@@ -642,16 +663,16 @@ with tabs[1]:
 
             c_conc1, c_conc2 = st.columns(2)
             with c_conc1:
-                 st.markdown("**Top Industries**")
                  if "industry_gics" in df_wh.columns:
-                     ind_exp = df_wh.groupby("industry_gics")["par_amount"].sum().sort_values(ascending=False).head(5)
-                     st.bar_chart(ind_exp)
+                     ind_exp = df_wh.groupby("industry_gics")["par_amount"].sum().sort_values(ascending=True).tail(7)
+                     fig = bar_chart(ind_exp, title="Top Industries", horizontal=True, height=300)
+                     st.plotly_chart(fig, use_container_width=True)
 
             with c_conc2:
-                 st.markdown("**Top Obligors**")
                  if "issuer_name" in df_wh.columns:
-                     iss_exp = df_wh.groupby("issuer_name")["par_amount"].sum().sort_values(ascending=False).head(5)
-                     st.bar_chart(iss_exp)
+                     iss_exp = df_wh.groupby("issuer_name")["par_amount"].sum().sort_values(ascending=True).tail(7)
+                     fig = bar_chart(iss_exp, title="Top Obligors", horizontal=True, height=300, color=BRAND["accent"])
+                     st.plotly_chart(fig, use_container_width=True)
 
             # Single-name concentration table
             st.divider()
@@ -831,12 +852,11 @@ with tabs[2]:
             col_chart, col_compare = st.columns(2)
 
             with col_chart:
-                st.markdown("**Loss by Scenario**")
-                chart_data = pd.DataFrame({
-                    "Scenario": [s.name for s in results.scenarios],
-                    "Loss ($M)": [s.loss_dollars / 1e6 for s in results.scenarios]
-                }).set_index("Scenario")
-                st.bar_chart(chart_data)
+                chart_data = pd.Series(
+                    {s.name: s.loss_dollars / 1e6 for s in results.scenarios}
+                )
+                fig = bar_chart(chart_data, title="Loss by Scenario ($M)", height=320, color=BRAND["negative"])
+                st.plotly_chart(fig, use_container_width=True)
 
             with col_compare:
                 st.markdown("**Stressed vs Unstressed**")
@@ -925,13 +945,13 @@ with tabs[2]:
                 df_plot = df_hist_stress.set_index("Date")
                 h1, h2 = st.columns(2)
                 with h1:
-                    st.markdown("**OC Ratio Over Time**")
-                    st.line_chart(df_plot[["Base OC", "Stressed OC"]])
+                    fig = line_chart(df_plot, ["Base OC", "Stressed OC"], title="OC Ratio Over Time", y_format=".2%", height=300, colors=[BRAND["positive"], BRAND["negative"]])
+                    st.plotly_chart(fig, use_container_width=True)
                 with h2:
-                    st.markdown("**Stressed CCC % Over Time**")
-                    st.line_chart(df_plot[["Stressed CCC %"]])
-                st.markdown("**Total Stressed Loss Over Time**")
-                st.line_chart(df_plot[["Total Loss ($M)"]])
+                    fig = trend_chart(df_plot, "Stressed CCC %", title="Stressed CCC % Over Time", y_format=".1%", color=BRAND["warning"])
+                    st.plotly_chart(fig, use_container_width=True)
+                fig = trend_chart(df_plot, "Total Loss ($M)", title="Total Stressed Loss Over Time", y_format="$,.1f", color=BRAND["negative"])
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No historical data available for stress trends.")
 
