@@ -10,8 +10,9 @@ import pandas as pd
 from typing import Optional, List, Dict
 
 # Plotly display config — passed to every st.plotly_chart() call
-# Disables the modebar and responsive resizing to prevent layout jitter.
-PLOTLY_CONFIG = {"displayModeBar": False, "responsive": False}
+# Hides the floating toolbar; keeps responsive sizing enabled so
+# charts fill their Streamlit container without scrollbars.
+PLOTLY_CONFIG = {"displayModeBar": False}
 
 # ── Brand palette ────────────────────────────────────────────────────
 
@@ -50,10 +51,11 @@ RATING_COLORS = {
 def _base_layout(**overrides) -> dict:
     """Common layout settings for every chart."""
     layout = dict(
+        autosize=True,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, -apple-system, sans-serif", color=BRAND["text"], size=12),
-        margin=dict(l=0, r=0, t=28, b=0),
+        margin=dict(l=0, r=10, t=28, b=8),
         xaxis=dict(
             gridcolor=BRAND["grid"],
             zerolinecolor=BRAND["grid"],
