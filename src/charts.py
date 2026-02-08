@@ -9,6 +9,10 @@ import plotly.express as px
 import pandas as pd
 from typing import Optional, List, Dict
 
+# Plotly display config — passed to every st.plotly_chart() call
+# Disables the modebar and responsive resizing to prevent layout jitter.
+PLOTLY_CONFIG = {"displayModeBar": False, "responsive": False}
+
 # ── Brand palette ────────────────────────────────────────────────────
 
 BRAND = {

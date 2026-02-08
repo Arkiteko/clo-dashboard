@@ -11,6 +11,7 @@ from src.style import inject_custom_css, TIER_COLORS, COLORS
 from src.charts import (
     trend_chart, line_chart, bar_chart, grouped_bar_chart,
     donut_chart, ramp_chart, BRAND, SERIES_COLORS, RATING_COLORS,
+    PLOTLY_CONFIG,
 )
 from src.risk_analytics import (
     compute_warf, compute_diversity_score, compute_portfolio_duration,
@@ -295,14 +296,14 @@ with tabs[0]:
             if "industry_gics" in df_latest.columns:
                 ind_exp = df_latest.groupby("industry_gics")["par_amount"].sum().sort_values(ascending=True).tail(10)
                 fig = bar_chart(ind_exp, title="Top 10 Industries", horizontal=True, height=360, color=BRAND["primary"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
         with col_charts2:
             if "rating_moodys" in df_latest.columns:
                 rtg_exp = df_latest.groupby("rating_moodys")["par_amount"].sum()
                 rtg_exp = rtg_exp.reindex(sorted(rtg_exp.index, key=lambda r: RATING_ORDER.get(r, 99)))
                 fig = bar_chart(rtg_exp, title="Rating Distribution", height=360, color_map=RATING_COLORS)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
         st.subheader("Top 20 Issuers (Global)")
         if "issuer_name" in df_latest.columns:
@@ -424,11 +425,11 @@ with tabs[0]:
                 if "lien_type" in df_latest.columns:
                     lien_totals = df_latest.groupby("lien_type")["par_amount"].sum()
                     fig = donut_chart(lien_totals, title="By Lien Type", height=280)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
                     lien_by_wh = df_latest.groupby(["warehouse_source", "lien_type"])["par_amount"].sum().unstack(fill_value=0)
                     fig2 = grouped_bar_chart(lien_by_wh, title="Lien Type by Warehouse", height=300)
-                    st.plotly_chart(fig2, use_container_width=True)
+                    st.plotly_chart(fig2, use_container_width=True, config=PLOTLY_CONFIG)
             else:
                 st.info("Lien type data not available.")
 
@@ -469,7 +470,7 @@ with tabs[0]:
             )
             mat_exp = df_mat.groupby("maturity_bucket")["par_amount"].sum().sort_index()
             fig = bar_chart(mat_exp, title="Maturity Profile", height=320, color=BRAND["secondary"])
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         else:
             st.info("Maturity date data not available.")
 
@@ -575,7 +576,7 @@ with tabs[1]:
                     rtg_exp = df_wh.groupby("rating_moodys")["par_amount"].sum()
                     rtg_exp = rtg_exp.reindex(sorted(rtg_exp.index, key=lambda r: RATING_ORDER.get(r, 99)))
                     fig = bar_chart(rtg_exp, title="Rating Distribution", height=340, color_map=RATING_COLORS)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             with c_qual2:
                 st.markdown("**Rating Migration (vs Original)**")
@@ -612,18 +613,18 @@ with tabs[1]:
             t1, t2 = st.columns(2)
             with t1:
                 fig = trend_chart(df_trend, "Funded Exposure", title="Funded Exposure", y_format="$,.0f", color=BRAND["primary"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
             with t2:
                 fig = trend_chart(df_trend, "W.Avg Price", title="W.Avg Price", y_format=".2f", color=BRAND["accent"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             t3, t4 = st.columns(2)
             with t3:
                 fig = trend_chart(df_trend, "Est. OC%", title="Est. OC Ratio", y_format=".2%", color=BRAND["positive"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
             with t4:
                 fig = trend_chart(df_trend, "WARF", title="WARF Trend", y_format=",.0f", color=BRAND["warning"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             # ── Ramp Tracker ──
             if config.target_ramp_amount and config.target_close_date:
@@ -647,7 +648,7 @@ with tabs[1]:
                         df_combined = df_ramp.join(df_actual, how="outer").sort_index()
                         df_combined["Funded Exposure"] = df_combined["Funded Exposure"].ffill()
                         fig = ramp_chart(df_combined)
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
                 except Exception:
                     st.info("Could not generate ramp chart. Check target dates in Admin Settings.")
 
@@ -666,13 +667,13 @@ with tabs[1]:
                  if "industry_gics" in df_wh.columns:
                      ind_exp = df_wh.groupby("industry_gics")["par_amount"].sum().sort_values(ascending=True).tail(7)
                      fig = bar_chart(ind_exp, title="Top Industries", horizontal=True, height=300)
-                     st.plotly_chart(fig, use_container_width=True)
+                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             with c_conc2:
                  if "issuer_name" in df_wh.columns:
                      iss_exp = df_wh.groupby("issuer_name")["par_amount"].sum().sort_values(ascending=True).tail(7)
                      fig = bar_chart(iss_exp, title="Top Obligors", horizontal=True, height=300, color=BRAND["accent"])
-                     st.plotly_chart(fig, use_container_width=True)
+                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             # Single-name concentration table
             st.divider()
@@ -856,7 +857,7 @@ with tabs[2]:
                     {s.name: s.loss_dollars / 1e6 for s in results.scenarios}
                 )
                 fig = bar_chart(chart_data, title="Loss by Scenario ($M)", height=320, color=BRAND["negative"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             with col_compare:
                 st.markdown("**Stressed vs Unstressed**")
@@ -946,12 +947,12 @@ with tabs[2]:
                 h1, h2 = st.columns(2)
                 with h1:
                     fig = line_chart(df_plot, ["Base OC", "Stressed OC"], title="OC Ratio Over Time", y_format=".2%", height=300, colors=[BRAND["positive"], BRAND["negative"]])
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
                 with h2:
                     fig = trend_chart(df_plot, "Stressed CCC %", title="Stressed CCC % Over Time", y_format=".1%", color=BRAND["warning"])
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
                 fig = trend_chart(df_plot, "Total Loss ($M)", title="Total Stressed Loss Over Time", y_format="$,.1f", color=BRAND["negative"])
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
             else:
                 st.info("No historical data available for stress trends.")
 

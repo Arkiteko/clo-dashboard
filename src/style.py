@@ -53,11 +53,6 @@ def inject_custom_css() -> None:
         border-left: 3px solid #3B82F6;
         border-radius: 8px;
         padding: 14px 18px;
-        transition: border-color 0.2s ease;
-    }
-
-    div[data-testid="stMetric"]:hover {
-        border-color: #3B82F6;
     }
 
     div[data-testid="stMetric"] label {
@@ -131,12 +126,6 @@ def inject_custom_css() -> None:
         border-radius: 6px;
         font-family: 'Inter', sans-serif;
         font-weight: 500;
-        transition: all 0.2s ease;
-    }
-
-    button[data-testid="stDownloadButton"]:hover {
-        border-color: #3B82F6;
-        box-shadow: 0 0 0 1px #3B82F633;
     }
 
     /* ── Plotly Charts Container ─────────────────────────── */
@@ -145,11 +134,6 @@ def inject_custom_css() -> None:
         border-radius: 8px;
         padding: 8px;
         background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
-        overflow: visible !important;
-    }
-
-    div[data-testid="stPlotlyChart"] > div {
-        overflow: visible !important;
     }
 
     /* ── Alert Banner Styles ────────────────────────────── */
