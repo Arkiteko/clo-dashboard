@@ -55,25 +55,36 @@ if files:
         upload_ts = "000000"
         warehouse_name = "Unknown"
 
-        # New Format: YYYYMMDD_HHMMSS_Name...
-        if len(parts) >= 3 and len(parts[0])==8 and len(parts[1])==6:
-             try:
-                 data_date = datetime.strptime(parts[0], "%Y%m%d")
-                 upload_ts = parts[1]
-                 warehouse_name = "_".join(parts[2:]).replace(".parquet", "")
-                 warehouse_name = warehouse_name.replace("_Tape", "")
-             except:
-                 pass
+        # Format: YYYYMMDD_HHMMSS_WarehouseName[_extra...]
+        # Extract the warehouse name (e.g. "Warehouse_Alpha") and ignore any
+        # trailing parts that may come from the original upload filename.
+        if len(parts) >= 3 and len(parts[0]) == 8 and len(parts[1]) == 6:
+            try:
+                data_date = datetime.strptime(parts[0], "%Y%m%d")
+                upload_ts = parts[1]
+                # Find "Warehouse" token and take the next part as the identifier
+                remainder = parts[2:]
+                if "Warehouse" in remainder:
+                    wh_idx = remainder.index("Warehouse")
+                    if wh_idx + 1 < len(remainder):
+                        warehouse_name = f"Warehouse_{remainder[wh_idx + 1]}"
+                    else:
+                        warehouse_name = "Warehouse"
+                else:
+                    # No "Warehouse" keyword — join all remaining parts as name
+                    warehouse_name = "_".join(remainder)
+            except:
+                pass
         else:
-             try:
-                 ts_str = parts[0]
-                 if len(ts_str) == 8:
-                      data_date = datetime.strptime(ts_str, "%Y%m%d")
-                 if "Warehouse" in parts:
-                     idx = parts.index("Warehouse")
-                     warehouse_name = "_".join(parts[idx:idx+2])
-             except:
-                 pass
+            try:
+                ts_str = parts[0]
+                if len(ts_str) == 8:
+                    data_date = datetime.strptime(ts_str, "%Y%m%d")
+                if "Warehouse" in parts:
+                    idx = parts.index("Warehouse")
+                    warehouse_name = "_".join(parts[idx:idx + 2])
+            except:
+                pass
 
         d["warehouse_source"] = warehouse_name
         d["data_date"] = data_date

@@ -15,18 +15,19 @@ def compute_file_hash(filepath: Path) -> str:
 def ingest_file(uploaded_file, destination_dir: Path, source_name: str) -> Path:
     """
     Saves uploaded file to raw layer with timestamp name.
+    Filename format: YYYYMMDD_HHMMSS_WarehouseName.ext
+    The source_name (warehouse) is the only identifier after the timestamp
+    to keep parsing simple and consistent.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Streamlit UploadedFile has .name
-    safe_name = Path(uploaded_file.name).stem
     ext = Path(uploaded_file.name).suffix
-    
-    filename = f"{timestamp}_{source_name}_{safe_name}{ext}"
+
+    filename = f"{timestamp}_{source_name}{ext}"
     dest_path = destination_dir / filename
-    
+
     with open(dest_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
-        
+
     return dest_path
 
 def load_excel_safe(filepath: Path) -> pd.DataFrame:
