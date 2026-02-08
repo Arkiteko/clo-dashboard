@@ -145,6 +145,11 @@ def inject_custom_css() -> None:
         border-radius: 8px;
         padding: 8px;
         background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+        overflow: visible !important;
+    }
+
+    div[data-testid="stPlotlyChart"] > div {
+        overflow: visible !important;
     }
 
     /* ── Alert Banner Styles ────────────────────────────── */

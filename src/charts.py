@@ -187,10 +187,14 @@ def bar_chart(
             marker_line=dict(width=0),
             hovertemplate="<b>%{x}</b><br>%{y:,.0f}<extra></extra>",
         ))
-        fig.update_layout(**_base_layout(
+        layout_opts = _base_layout(
             height=height,
             title=dict(text=title, font=dict(size=13)),
-        ))
+        )
+        # Give x-axis labels room — auto-rotate long labels
+        layout_opts["margin"]["b"] = 40
+        layout_opts["xaxis"]["tickangle"] = -35 if len(data) > 8 else 0
+        fig.update_layout(**layout_opts)
         if y_format:
             fig.update_yaxes(tickformat=y_format)
 
