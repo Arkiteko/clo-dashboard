@@ -276,6 +276,51 @@ def inject_custom_css() -> None:
     .badge-info     { background: #22D3EE33; color: #22D3EE; }
     .badge-clear    { background: #10B98133; color: #10B981; }
 
+    /* ── Platform Header ──────────────────────────────── */
+    .platform-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 18px 0 14px 0;
+        margin-bottom: 8px;
+        border-bottom: 2px solid transparent;
+        border-image: linear-gradient(90deg, #3B82F6 0%, #6366F1 40%, #22D3EE 100%) 1;
+    }
+
+    .platform-header .header-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%);
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+
+    .platform-header .header-text h1 {
+        margin: 0;
+        font-family: 'Inter', -apple-system, sans-serif;
+        font-size: 1.65rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #F1F5F9 0%, #94A3B8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.2;
+    }
+
+    .platform-header .header-text p {
+        margin: 2px 0 0 0;
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+    }
+
     /* ── Dividers ────────────────────────────────────── */
     hr {
         border-color: #1E293B !important;

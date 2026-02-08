@@ -188,7 +188,16 @@ with st.sidebar:
 
 # ── Main Title + Tabs ─────────────────────────────────────────────────
 
-st.title("CLO Warehouse Platform")
+st.markdown(
+    '<div class="platform-header">'
+    '  <div class="header-icon">📊</div>'
+    '  <div class="header-text">'
+    '    <h1>CLO Warehouse Platform</h1>'
+    '    <p>Portfolio Monitoring &amp; Risk Analytics</p>'
+    '  </div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 tabs = st.tabs([
     "Global Portfolio", "Warehouse Analytics", "Stress Testing",
@@ -575,7 +584,7 @@ with tabs[1]:
                 if "rating_moodys" in df_wh.columns:
                     rtg_exp = df_wh.groupby("rating_moodys")["par_amount"].sum()
                     rtg_exp = rtg_exp.reindex(sorted(rtg_exp.index, key=lambda r: RATING_ORDER.get(r, 99)))
-                    fig = bar_chart(rtg_exp, title="Rating Distribution", height=340, color_map=RATING_COLORS)
+                    fig = bar_chart(rtg_exp, title="Rating Distribution", height=380, color_map=RATING_COLORS)
                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
             with c_qual2:
@@ -584,7 +593,7 @@ with tabs[1]:
                     df_mig = df_wh[["asset_id", "issuer_name", "original_rating_moodys", "rating_moodys", "par_amount"]].copy()
                     df_mig["Downgraded"] = df_mig.apply(lambda x: x["rating_moodys"] != x["original_rating_moodys"], axis=1)
                     df_mig_filtered = df_mig[df_mig["Downgraded"]]
-                    st.dataframe(df_mig_filtered, hide_index=True)
+                    st.dataframe(df_mig_filtered, hide_index=True, height=340)
                     if not df_mig_filtered.empty:
                         st.download_button(
                             "Download Migration CSV", df_mig_filtered.to_csv(index=False).encode("utf-8"),
