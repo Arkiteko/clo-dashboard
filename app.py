@@ -931,46 +931,63 @@ with tabs[2]:
 with tabs[3]:
     st.markdown("### Data Tape Ingestion & Validation")
 
-    uploaded_file = st.file_uploader("Drop Standard Template (Excel)", type=["xlsx"])
+    uploaded_files = st.file_uploader("Drop Standard Template(s) (Excel)", type=["xlsx"], accept_multiple_files=True)
     warehouse_name = st.selectbox("Select Warehouse Name for Ingestion", ["Warehouse_Alpha", "Warehouse_Beta", "Warehouse_Gamma"])
     as_of_date = st.date_input("As Of Date")
 
     process_btn = st.button("Process Tape")
 
-    if uploaded_file and process_btn:
-        with st.spinner("Ingesting and Validating..."):
-            raw_path = ingest_file(uploaded_file, RAW_DIR, warehouse_name)
-            st.success(f"File saved: {raw_path.name}")
+    if uploaded_files and process_btn:
+        pipeline = ETLPipeline(RAW_DIR, STAGING_DIR, STANDARD_DIR)
+        total_files = len(uploaded_files)
+        success_count = 0
+        fail_count = 0
 
-            pipeline = ETLPipeline(RAW_DIR, STAGING_DIR, STANDARD_DIR)
-            df, issues = pipeline.process_tape(raw_path)
+        progress_bar = st.progress(0, text=f"Processing 0 / {total_files} files...")
 
-            if df is not None:
-                st.divider()
-                st.subheader("Validation Report")
+        for idx, uploaded_file in enumerate(uploaded_files):
+            with st.expander(f"**{uploaded_file.name}**", expanded=True):
+                with st.spinner(f"Ingesting {uploaded_file.name}..."):
+                    raw_path = ingest_file(uploaded_file, RAW_DIR, warehouse_name)
+                    st.success(f"File saved: {raw_path.name}")
 
-                hard_errors = [i for i in issues if i.severity == "HARD"]
-                soft_warns = [i for i in issues if i.severity == "SOFT"]
+                    df, issues = pipeline.process_tape(raw_path)
 
-                c1, c2 = st.columns(2)
-                c1.metric("Hard Errors", len(hard_errors), delta_color="inverse" if hard_errors else "off")
-                c2.metric("Warnings", len(soft_warns), delta_color="normal")
+                    if df is not None:
+                        hard_errors = [i for i in issues if i.severity == "HARD"]
+                        soft_warns = [i for i in issues if i.severity == "SOFT"]
 
-                if hard_errors:
-                    st.error("Blocking Issues Found - Data NOT Published:")
-                    for e in hard_errors:
-                        st.write(f"- {e.message} (Row IDs: {e.row_id})")
+                        c1, c2 = st.columns(2)
+                        c1.metric("Hard Errors", len(hard_errors), delta_color="inverse" if hard_errors else "off")
+                        c2.metric("Warnings", len(soft_warns), delta_color="normal")
 
-                if soft_warns:
-                    st.warning("Warnings:")
-                    for w in soft_warns:
-                         st.write(f"- {w.message}")
+                        if hard_errors:
+                            st.error("Blocking Issues Found - Data NOT Published:")
+                            for e in hard_errors:
+                                st.write(f"- {e.message} (Row IDs: {e.row_id})")
+                            fail_count += 1
 
-                if not hard_errors:
-                    st.success("Published Successfully!")
-                    st.cache_data.clear()
-            else:
-                st.error("Failed to parse file.")
+                        if soft_warns:
+                            st.warning("Warnings:")
+                            for w in soft_warns:
+                                 st.write(f"- {w.message}")
+
+                        if not hard_errors:
+                            st.success("Published Successfully!")
+                            success_count += 1
+                    else:
+                        st.error("Failed to parse file.")
+                        fail_count += 1
+
+            progress_bar.progress((idx + 1) / total_files, text=f"Processing {idx + 1} / {total_files} files...")
+
+        st.cache_data.clear()
+        st.divider()
+        st.subheader("Batch Summary")
+        s1, s2, s3 = st.columns(3)
+        s1.metric("Total Files", total_files)
+        s2.metric("Succeeded", success_count)
+        s3.metric("Failed", fail_count, delta_color="inverse" if fail_count else "off")
 
     st.divider()
     st.markdown("### Load History")
