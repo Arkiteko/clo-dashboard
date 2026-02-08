@@ -55,7 +55,7 @@ def _base_layout(**overrides) -> dict:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, -apple-system, sans-serif", color=BRAND["text"], size=12),
-        margin=dict(l=0, r=10, t=28, b=8),
+        margin=dict(l=50, r=10, t=32, b=40),
         xaxis=dict(
             gridcolor=BRAND["grid"],
             zerolinecolor=BRAND["grid"],
@@ -180,11 +180,16 @@ def bar_chart(
             marker_color=colors,
             hovertemplate="<b>%{y}</b><br>%{x:,.0f}<extra></extra>",
         ))
-        fig.update_layout(**_base_layout(
+        layout_opts = _base_layout(
             height=height,
             title=dict(text=title, font=dict(size=13)),
             yaxis=dict(autorange="reversed", gridcolor=BRAND["grid"], tickfont=dict(size=10, color=BRAND["text_muted"])),
-        ))
+        )
+        # Auto-calculate left margin based on longest label
+        max_label_len = max((len(str(l)) for l in data.index), default=10)
+        layout_opts["margin"]["l"] = min(max_label_len * 7, 220)
+        layout_opts["margin"]["b"] = 30
+        fig.update_layout(**layout_opts)
     else:
         fig = go.Figure(go.Bar(
             x=data.index,
@@ -198,8 +203,12 @@ def bar_chart(
             title=dict(text=title, font=dict(size=13)),
         )
         # Give x-axis labels room — auto-rotate long labels
-        layout_opts["margin"]["b"] = 40
-        layout_opts["xaxis"]["tickangle"] = -35 if len(data) > 8 else 0
+        max_label_len = max((len(str(l)) for l in data.index), default=5)
+        if len(data) > 8 or max_label_len > 10:
+            layout_opts["margin"]["b"] = 80
+            layout_opts["xaxis"]["tickangle"] = -40
+        else:
+            layout_opts["margin"]["b"] = 50
         fig.update_layout(**layout_opts)
         if y_format:
             fig.update_yaxes(tickformat=y_format)
@@ -222,11 +231,19 @@ def grouped_bar_chart(
             marker_color=SERIES_COLORS[i % len(SERIES_COLORS)],
             hovertemplate=f"<b>{col}</b><br>%{{x}}<br>%{{y:,.0f}}<extra></extra>",
         ))
-    fig.update_layout(**_base_layout(
+    layout_opts = _base_layout(
         height=height,
         title=dict(text=title, font=dict(size=13)),
         barmode="group",
-    ))
+    )
+    # Extra bottom margin for x-axis warehouse labels
+    max_label_len = max((len(str(l)) for l in df.index), default=5)
+    if max_label_len > 12:
+        layout_opts["margin"]["b"] = 80
+        layout_opts["xaxis"]["tickangle"] = -30
+    else:
+        layout_opts["margin"]["b"] = 50
+    fig.update_layout(**layout_opts)
     return fig
 
 
@@ -260,7 +277,7 @@ def donut_chart(
         height=height,
         title=dict(text=title, font=dict(size=13)),
         showlegend=False,
-        margin=dict(l=0, r=0, t=32, b=0),
+        margin=dict(l=10, r=10, t=32, b=10),
     ))
     return fig
 
