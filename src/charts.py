@@ -70,10 +70,10 @@ def _base_layout(**overrides) -> dict:
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=11, color=BRAND["text_muted"]),
             orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="left",
-            x=0,
+            yanchor="top",
+            y=-0.15,
+            xanchor="center",
+            x=0.5,
         ),
         hoverlabel=dict(
             bgcolor=BRAND["card"],
@@ -117,6 +117,9 @@ def line_chart(
         ))
 
     layout_opts = _base_layout(height=height, title=dict(text=title, font=dict(size=14)))
+    # Extra bottom margin for legend below chart when multi-series
+    if len(y_cols) > 1:
+        layout_opts["margin"]["b"] = 60
     if y_format:
         layout_opts["yaxis"]["tickformat"] = y_format
     fig.update_layout(**layout_opts)
@@ -236,13 +239,13 @@ def grouped_bar_chart(
         title=dict(text=title, font=dict(size=13)),
         barmode="group",
     )
-    # Extra bottom margin for x-axis warehouse labels
+    # Extra bottom margin for x-axis labels + legend below chart
     max_label_len = max((len(str(l)) for l in df.index), default=5)
     if max_label_len > 12:
-        layout_opts["margin"]["b"] = 80
+        layout_opts["margin"]["b"] = 100
         layout_opts["xaxis"]["tickangle"] = -30
     else:
-        layout_opts["margin"]["b"] = 50
+        layout_opts["margin"]["b"] = 80
     fig.update_layout(**layout_opts)
     return fig
 
@@ -339,8 +342,10 @@ def ramp_chart(
             hovertemplate="<b>Actual</b><br>%{x|%b %d}<br>$%{y:,.0f}<extra></extra>",
         ))
 
-    fig.update_layout(**_base_layout(
+    layout_opts = _base_layout(
         height=height,
         title=dict(text=title, font=dict(size=13)),
-    ))
+    )
+    layout_opts["margin"]["b"] = 60
+    fig.update_layout(**layout_opts)
     return fig
