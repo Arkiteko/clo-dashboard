@@ -959,7 +959,7 @@ with tabs[3]:
         for idx, uploaded_file in enumerate(uploaded_files):
             with st.expander(f"**{uploaded_file.name}**", expanded=True):
                 with st.spinner(f"Ingesting {uploaded_file.name}..."):
-                    raw_path = ingest_file(uploaded_file, RAW_DIR, warehouse_name)
+                    raw_path = ingest_file(uploaded_file, RAW_DIR, warehouse_name, as_of_date=as_of_date)
                     st.success(f"File saved: {raw_path.name}")
 
                     df, issues = pipeline.process_tape(raw_path)
